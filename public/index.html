@@ -23,113 +23,129 @@
   <!-- Direct Supabase Web SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; }
+    @keyframes spin {
+      0% { --angle: 0deg; }
+      100% { --angle: 360deg; }
+    }
+
+    @property --angle {
+      syntax: '<angle>';
+      initial-value: 0deg;
+      inherits: false;
+    }
+
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #020617; color: #f8fafc; }
     #navbar { height: 50px; background: #090d16; color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid #1e293b; }
     #editor-wrapper { max-width: 900px; margin: 20px auto; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 4px; }
     .btn { background: #22c55e; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; }
     #status { font-size: 13px; color: #94a3b8; margin-right: 15px; }
 
-    /* Dark Theme Landing Screen */
+    /* Matrix Glow Overlay Screen */
     #user-modal-overlay {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: #030712;
+      background: #020617;
       display: flex; justify-content: center; align-items: center; z-index: 9999;
+      overflow: hidden;
     }
+    
+    #bg-canvas {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.15;
+    }
+
     .landing-card {
-      text-align: center; max-width: 480px; width: 90%;
+      position: relative; z-index: 10;
+      text-align: center; max-width: 520px; width: 90%;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(16px);
+      padding: 40px; border-radius: 16px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
     }
+
     .team-badge {
-      display: inline-block;
-      background: rgba(30, 41, 59, 0.6);
-      border: 1px solid #1e293b;
-      color: #94a3b8;
-      font-size: 11px;
-      letter-spacing: 1.5px;
-      padding: 6px 16px;
-      border-radius: 20px;
-      margin-bottom: 25px;
-      font-weight: 600;
-      text-transform: uppercase;
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #818cf8; font-size: 11px; letter-spacing: 1.5px;
+      padding: 6px 16px; border-radius: 20px; margin-bottom: 20px;
+      font-weight: 600; text-transform: uppercase;
     }
+    
+    .pulse-dot {
+      width: 6px; height: 6px; background-color: #6366f1; border-radius: 50%;
+      box-shadow: 0 0 8px #6366f1; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+
     .brand-title {
-      font-size: 48px;
-      font-weight: 800;
-      color: #ffffff;
-      margin: 0;
-      letter-spacing: -1px;
+      font-size: 52px; font-weight: 900; color: #ffffff; margin: 0; letter-spacing: -1.5px;
+      background: linear-gradient(180deg, #FFFFFF 0%, #94A3B8 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .brand-title span {
-      color: #6366f1;
-    }
+    .brand-title span { color: #6366f1; -webkit-text-fill-color: #6366f1; }
+
     .brand-subtitle {
-      color: #64748b;
-      font-size: 12px;
-      letter-spacing: 1.5px;
-      margin-top: 8px;
-      margin-bottom: 25px;
-      text-transform: uppercase;
-      font-weight: 500;
+      color: #64748b; font-size: 11px; letter-spacing: 2px;
+      margin-top: 6px; margin-bottom: 25px; text-transform: uppercase; font-weight: 600;
     }
+
     .credit-divider {
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
-      padding-top: 20px;
-      margin-bottom: 25px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 18px; margin-bottom: 25px;
     }
-    .credit-text {
-      color: #64748b;
-      font-size: 13px;
-      margin: 0;
-    }
-    .credit-author {
-      color: #818cf8;
-      font-size: 15px;
-      font-weight: 700;
-      margin-top: 4px;
-    }
-    .user-btn-group {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
+    .credit-text { color: #64748b; font-size: 12px; margin: 0; }
+    .credit-author { color: #38bdf8; font-size: 15px; font-weight: 700; margin-top: 4px; letter-spacing: 0.5px; }
+
+    .user-btn-group { display: flex; flex-direction: column; gap: 14px; }
+
+    /* Standard Profile Button */
     .btn-user {
-      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-      border: 1px solid #334155;
-      color: white;
-      padding: 14px 20px;
-      border-radius: 8px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      transition: all 0.2s ease;
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: white; padding: 14px 20px; border-radius: 10px;
+      cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+      transition: all 0.25s ease;
     }
     .btn-user:hover {
-      border-color: #6366f1;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);
+      border-color: rgba(99, 102, 241, 0.5);
+      background: rgba(30, 41, 59, 0.9);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
     }
-    .user-info {
-      text-align: left;
+
+    /* Rotating Border Animation Container for Lead Architect */
+    .lead-border-wrap {
+      position: relative;
+      border-radius: 12px;
+      padding: 2px;
+      background: conic-gradient(from var(--angle), #6366f1, #38bdf8, #ec4899, #6366f1);
+      animation: spin 3s linear infinite;
     }
-    .user-name {
-      font-size: 15px;
-      font-weight: 600;
-      color: #f8fafc;
-      display: block;
+
+    .btn-user-lead {
+      background: #0f172a;
+      color: white; padding: 14px 20px; border-radius: 10px;
+      cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+      transition: all 0.25s ease; width: 100%; box-sizing: border-box; border: none;
     }
-    .user-role {
-      font-size: 11px;
-      color: #94a3b8;
-      display: block;
-      margin-top: 2px;
+    .btn-user-lead:hover {
+      background: #1e293b;
+      box-shadow: 0 0 25px rgba(99, 102, 241, 0.4);
     }
-    .btn-user .arrow {
-      font-size: 16px;
-      color: #6366f1;
-      transition: transform 0.2s ease;
+
+    .user-info { text-align: left; }
+    .user-name { font-size: 15px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px; }
+    .user-role { font-size: 11px; color: #94a3b8; display: block; margin-top: 3px; font-weight: 500; }
+    
+    .tech-tag {
+      font-size: 9px; background: rgba(56, 189, 248, 0.15); color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 4px; text-transform: uppercase;
     }
-    .btn-user:hover .arrow {
-      transform: translateX(4px);
+
+    .arrow { font-size: 16px; color: #6366f1; transition: transform 0.2s ease; }
+    .btn-user:hover .arrow, .btn-user-lead:hover .arrow { transform: translateX(5px); color: #38bdf8; }
+
+    @keyframes ping {
+      75%, 100% { transform: scale(2); opacity: 0; }
     }
   </style>
 </head>
@@ -137,9 +153,14 @@
 
   <!-- Entry Modal -->
   <div id="user-modal-overlay">
+    <canvas id="bg-canvas"></canvas>
+
     <div class="landing-card">
-        <span class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
-      <div class="team-badge">Team Three Bugs</div>
+      <div class="team-badge">
+        <span class="pulse-dot"></span>
+        <span>Team Three Bugs</span>
+      </div>
+
       <h1 class="brand-title">Tex<span>A</span></h1>
       <div class="brand-subtitle">Textile AI Assistant Documentation</div>
       
@@ -158,14 +179,19 @@
           <span class="arrow">&rarr;</span>
         </button>
 
-        <!-- Lead Architect Second -->
-        <button class="btn-user" onclick="selectUser('Sunny')">
-          <div class="user-info">
-            <span class="user-name">Sunny</span>
-            <span class="user-role">Lead Architect & Programmer</span>
-          </div>
-          <span class="arrow">&rarr;</span>
-        </button>
+        <!-- Sunny (Lead Architect) - Glowing Border Frame -->
+        <div class="lead-border-wrap">
+          <button class="btn-user-lead" onclick="selectUser('Sunny')">
+            <div class="user-info">
+              <span class="user-name">
+                Sunny 
+                <span class="tech-tag">Lead Creator</span>
+              </span>
+              <span class="user-role">Lead Architect & Programmer</span>
+            </div>
+            <span class="arrow">&rarr;</span>
+          </button>
+        </div>
 
         <!-- Co-Architect Third -->
         <button class="btn-user" onclick="selectUser('Alvina')">
@@ -180,7 +206,7 @@
   </div>
 
   <div id="navbar">
-    <div><strong>TexA Workspace</strong> — <span id="active-user-display" style="color: #818cf8;">Selecting Profile...</span></div>
+    <div><strong>TexA Workspace</strong> — <span id="active-user-display" style="color: #38bdf8;">Selecting Profile...</span></div>
     <div>
       <span id="status">Connecting...</span>
       <button class="btn" onclick="saveDocument()">Save Document</button>
@@ -192,6 +218,36 @@
   </div>
 
   <script>
+    // Matrix background Canvas Effect
+    const canvas = document.getElementById('bg-canvas');
+    const ctx = canvas.getContext('2d');
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
+
+    const cols = Math.floor(width / 20);
+    const ypos = Array(cols).fill(0);
+
+    function matrix() {
+      ctx.fillStyle = '#020617';
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = '#6366f1';
+      ctx.font = '12pt monospace';
+
+      ypos.forEach((y, index) => {
+        const text = String.fromCharCode(Math.floor(Math.random() * 128));
+        const x = index * 20;
+        ctx.fillText(text, x, y);
+        if (y > 100 + Math.random() * 10000) ypos[index] = 0;
+        else ypos[index] = y + 20;
+      });
+    }
+    setInterval(matrix, 50);
+
+    window.addEventListener('resize', () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    });
+
     const SUPABASE_URL = "https://kurzeacigxymiatiyuxu.supabase.co"; 
     const SUPABASE_KEY = "sb_publishable_RYyFdiRHUHzPjF8f_KGz8Q_w4zMqNK7";
     
