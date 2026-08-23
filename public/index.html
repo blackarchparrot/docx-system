@@ -2,58 +2,78 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>DOCX Cloud Platform</title>
-  <script src="https://unpkg.com/jszip/dist/jszip.min.js"></script>
-  <script src="https://unpkg.com/docx-preview@0.1.15/dist/docx-preview.min.js"></script>
+  <title>DocWorkspace | Word Editor</title>
+  <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: #eef2f5; }
-    #header { height: 50px; background: #1a252f; color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
-    #editor-container { height: calc(100vh - 50px); padding: 20px; overflow-y: auto; display: flex; justify-content: center; }
-    .docx-wrapper { background: transparent !important; padding: 0 !important; }
-    .docx-wrapper > section.docx { box-shadow: 0 4px 10px rgba(0,0,0,0.15) !important; margin-bottom: 20px !important; }
-    .btn { background: #27ae60; color: white; border: none; padding: 7px 14px; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 13px; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #f0f2f5; }
+    #navbar { height: 50px; background: #1e293b; color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
+    #editor-wrapper { max-width: 900px; margin: 20px auto; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 4px; }
+    .btn { background: #22c55e; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .btn-audit { background: #f59e0b; margin-left: 10px; text-decoration: none; display: inline-block; }
+    #status { font-size: 13px; color: #94a3b8; }
   </style>
 </head>
 <body>
 
-  <div id="header">
-    <div><strong>DocWorkspace</strong> | Vercel Live Platform</div>
+  <div id="navbar">
+    <div><strong>DocWorkspace</strong> — <span id="doc-title">texAR2.docx</span></div>
     <div>
-      <input type="file" id="fileInput" accept=".docx" style="display:none;" onchange="handleUpload()" />
-      <button class="btn" onclick="document.getElementById('fileInput').click()">Upload DOCX</button>
-      <a href="/admin" class="btn" style="background:#e67e22; margin-left: 10px;">Audit Logs</a>
+      <span id="status">Loading...</span>
+      <button class="btn" onclick="saveDocument()">Save Document</button>
+      <a href="/admin" class="btn btn-audit">Audit Logs</a>
     </div>
   </div>
 
-  <div id="editor-container">
-    <div id="document-render"></div>
+  <div id="editor-wrapper">
+    <textarea id="word-editor"></textarea>
   </div>
 
   <script>
-    async function handleUpload() {
-      const file = document.getElementById('fileInput').files[0];
-      if (!file) return;
+    const DOC_ID = 'texAR2';
 
-      const renderTarget = document.getElementById("document-render");
-      renderTarget.innerHTML = "<p>Loading document preview...</p>";
+    async function initEditor() {
+      // 1. Fetch latest preloaded content from Supabase
+      const res = await fetch(`/api/document?id=${DOC_ID}`);
+      const data = await res.json();
+      
+      document.getElementById('doc-title').innerText = data.title || 'texAR2.docx';
+      document.getElementById('status').innerText = 'Ready';
 
-      // Render native preview directly in browser
-      const arrayBuffer = await file.arrayBuffer();
-      renderTarget.innerHTML = "";
-      await docx.renderAsync(arrayBuffer, renderTarget);
-
-      // Upload file payload to Vercel API
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        const base64 = reader.result.split(',')[1];
-        await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileName: file.name, fileBase64: base64, user: 'Vercel User' })
-        });
-      };
+      // 2. Initialize Word-like editor
+      tinymce.init({
+        selector: '#word-editor',
+        height: 750,
+        menubar: 'file edit view insert format tools table',
+        plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table wordcount',
+        toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | table',
+        content_style: 'body { font-family: Arial, sans-serif; font-size: 14pt; padding: 20px; }',
+        setup: function (editor) {
+          editor.on('init', function () {
+            editor.setContent(data.content || '');
+          });
+        }
+      });
     }
+
+    async function saveDocument() {
+      document.getElementById('status').innerText = 'Saving...';
+      const content = tinymce.get('word-editor').getContent();
+
+      const res = await fetch(`/api/document?id=${DOC_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, user: 'Alex' })
+      });
+
+      if (res.ok) {
+        document.getElementById('status').innerText = 'Saved to database!';
+        setTimeout(() => document.getElementById('status').innerText = 'Ready', 2000);
+      } else {
+        document.getElementById('status').innerText = 'Save failed!';
+      }
+    }
+
+    window.onload = initEditor;
   </script>
 </body>
 </html>
