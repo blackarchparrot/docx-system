@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DocWorkspace | Word Editor</title>
+  <title>texAR2 Workspace</title>
   <script src="https://cdn.tiny.cloud/1/tso1rmilvgtjzl2m00u2ifwhhdr8u0tqqs47r7gu04a8qwg4/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/diff-match-patch/20121119/diff_match_patch.js"></script>
   <style>
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; }
     #navbar { height: 50px; background: #1e293b; color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
@@ -17,9 +18,9 @@
 <body>
 
   <div id="navbar">
-    <div><strong>DocWorkspace</strong> — <span id="doc-title">texAR2.docx</span></div>
+    <div><strong>DocWorkspace</strong> — texAR2.docx</div>
     <div>
-      <span id="status">Loading...</span>
+      <span id="status">Loading document...</span>
       <button class="btn" onclick="saveDocument()">Save Document</button>
       <a href="/admin" class="btn btn-audit">Audit Logs</a>
     </div>
@@ -31,47 +32,91 @@
 
   <script>
     const DOC_ID = 'texAR2';
+    let previousContent = '';
 
     async function initEditor() {
+      let initialContent = '<h1>texAR2.docx</h1><p>Type content here...</p>';
+
       try {
         const res = await fetch(`/api/document?id=${DOC_ID}`);
-        const data = await res.json();
-        
-        document.getElementById('doc-title').innerText = data.title || 'texAR2.docx';
-        document.getElementById('status').innerText = 'Ready';
-
-        tinymce.init({
-          selector: '#word-editor',
-          height: 750,
-          menubar: 'file edit view insert format tools table',
-          plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table wordcount',
-          toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | table',
-          content_style: 'body { font-family: Arial, sans-serif; font-size: 14pt; padding: 25px; }',
-          setup: function (editor) {
-            editor.on('init', function () {
-              editor.setContent(data.content || '');
-            });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.content) {
+            initialContent = data.content;
           }
-        });
+        }
       } catch (err) {
-        document.getElementById('status').innerText = 'Error loading document';
+        console.warn("Using baseline document content.");
       }
+
+      previousContent = initialContent;
+      document.getElementById('status').innerText = 'Ready';
+
+      tinymce.init({
+        selector: '#word-editor',
+        height: 750,
+        menubar: 'file edit view insert format tools table',
+        plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table wordcount',
+        toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | table',
+        content_style: 'body { font-family: Arial, sans-serif; font-size: 14pt; padding: 25px; }',
+        setup: function (editor) {
+          editor.on('init', function () {
+            editor.setContent(initialContent);
+          });
+        }
+      });
     }
 
     async function saveDocument() {
       document.getElementById('status').innerText = 'Saving...';
-      const content = tinymce.get('word-editor').getContent();
+      const currentContent = tinymce.get('word-editor').getContent();
 
-      const res = await fetch(`/api/document?id=${DOC_ID}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, user: 'Alex' })
+      // Extract plain text to generate a clean, readable diff
+      const tempOld = document.createElement('div');
+      tempOld.innerHTML = previousContent;
+      const oldText = tempOld.innerText || tempOld.textContent;
+
+      const tempNew = document.createElement('div');
+      tempNew.innerHTML = currentContent;
+      const newText = tempNew.innerText || tempNew.textContent;
+
+      // Calculate exact text difference
+      const dmp = new diff_match_patch();
+      const diffs = dmp.diff_main(oldText, newText);
+      dmp.diff_cleanupSemantic(diffs);
+
+      // Summarize changes into added/deleted snippets
+      let additions = [];
+      let deletions = [];
+      diffs.forEach(([op, text]) => {
+        if (op === 1) additions.push(text.trim());   // Text Added
+        if (op === -1) deletions.push(text.trim()); // Text Deleted
       });
 
-      if (res.ok) {
-        document.getElementById('status').innerText = 'Saved to database!';
-        setTimeout(() => document.getElementById('status').innerText = 'Ready', 2000);
-      } else {
+      const changeSummary = {
+        added: additions.filter(Boolean),
+        deleted: deletions.filter(Boolean)
+      };
+
+      try {
+        const res = await fetch(`/api/document?id=${DOC_ID}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            content: currentContent, 
+            user: 'Anonymous Editor',
+            changes: changeSummary
+          })
+        });
+
+        if (res.ok) {
+          previousContent = currentContent; // Update reference for next diff
+          document.getElementById('status').innerText = 'Saved!';
+          setTimeout(() => document.getElementById('status').innerText = 'Ready', 2000);
+        } else {
+          document.getElementById('status').innerText = 'Save failed!';
+        }
+      } catch (e) {
         document.getElementById('status').innerText = 'Save failed!';
       }
     }
