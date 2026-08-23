@@ -35,7 +35,7 @@
     let previousContent = '';
 
     async function initEditor() {
-      let initialContent = '<h1>texAR2.docx</h1><p>Type content here...</p>';
+      let initialContent = '<h1>texAR2.docx</h1><p>Paste or type content here...</p>';
 
       try {
         const res = await fetch(`/api/document?id=${DOC_ID}`);
@@ -57,8 +57,33 @@
         height: 750,
         menubar: 'file edit view insert format tools table',
         plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table wordcount',
-        toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | table',
-        content_style: 'body { font-family: Arial, sans-serif; font-size: 14pt; padding: 25px; }',
+        toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | image table | removeformat',
+        content_style: 'body { font-family: Arial, sans-serif; font-size: 14pt; padding: 25px; } img { max-width: 100%; height: auto; }',
+        
+        // Convert pasted/inserted images to inline Base64 data strings
+        image_title: true,
+        automatic_uploads: true,
+        file_picker_types: 'image',
+        file_picker_callback: function (cb, value, meta) {
+          var input = document.createElement('input');
+          input.setAttribute('type', 'file');
+          input.setAttribute('accept', 'image/*');
+
+          input.onchange = function () {
+            var file = this.files[0];
+            var reader = new FileReader();
+            reader.onload = function () {
+              var id = 'blobid' + (new Date()).getTime();
+              var blobCache =  tinymce.activeEditor.editorUpload.blobCache;
+              var base64 = reader.result.split(',')[1];
+              var blobInfo = blobCache.create(id, file, base64);
+              blobCache.add(blobInfo);
+              cb(blobInfo.blobUri(), { title: file.name });
+            };
+            reader.readAsDataURL(file);
+          };
+          input.click();
+        },
         setup: function (editor) {
           editor.on('init', function () {
             editor.setContent(initialContent);
@@ -69,9 +94,11 @@
 
     async function saveDocument() {
       document.getElementById('status').innerText = 'Saving...';
+      
+      // Ensure all inserted images are encoded to permanent base64 before posting
+      await tinymce.activeEditor.uploadImages();
       const currentContent = tinymce.get('word-editor').getContent();
 
-      // Extract plain text to generate a clean, readable diff
       const tempOld = document.createElement('div');
       tempOld.innerHTML = previousContent;
       const oldText = tempOld.innerText || tempOld.textContent;
@@ -80,17 +107,15 @@
       tempNew.innerHTML = currentContent;
       const newText = tempNew.innerText || tempNew.textContent;
 
-      // Calculate exact text difference
       const dmp = new diff_match_patch();
       const diffs = dmp.diff_main(oldText, newText);
       dmp.diff_cleanupSemantic(diffs);
 
-      // Summarize changes into added/deleted snippets
       let additions = [];
       let deletions = [];
       diffs.forEach(([op, text]) => {
-        if (op === 1) additions.push(text.trim());   // Text Added
-        if (op === -1) deletions.push(text.trim()); // Text Deleted
+        if (op === 1) additions.push(text.trim());
+        if (op === -1) deletions.push(text.trim());
       });
 
       const changeSummary = {
@@ -110,7 +135,7 @@
         });
 
         if (res.ok) {
-          previousContent = currentContent; // Update reference for next diff
+          previousContent = currentContent;
           document.getElementById('status').innerText = 'Saved!';
           setTimeout(() => document.getElementById('status').innerText = 'Ready', 2000);
         } else {
