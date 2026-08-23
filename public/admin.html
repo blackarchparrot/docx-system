@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>System Audit Logs</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 30px; background: #f8f9fa; }
+    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { border-bottom: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; }
+    th { background: #f2f2f2; }
+    .badge { background: #27ae60; color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>Document Activity Audit Logs</h2>
+    <a href="/" style="text-decoration:none; color:#2980b9;">← Return to App</a>
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Actor</th>
+          <th>Event</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody id="audit-table"></tbody>
+    </table>
+  </div>
+
+  <script>
+    async function loadLogs() {
+      const res = await fetch('/api/audit');
+      const data = await res.json();
+      const tbody = document.getElementById('audit-table');
+      
+      tbody.innerHTML = (data.logs || []).map(log => `
+        <tr>
+          <td>${new Date(log.created_at).toLocaleString()}</td>
+          <td><strong>${log.actor_name}</strong></td>
+          <td><span class="badge">${log.event_type}</span></td>
+          <td><code>${JSON.stringify(log.details)}</code></td>
+        </tr>
+      `).join('');
+    }
+    window.onload = loadLogs;
+  </script>
+</body>
+</html>
