@@ -34,9 +34,9 @@
   </div>
 
   <script>
-    // HARDCODED DIRECT CONNECTION (No Vercel API middleware)
-    const SUPABASE_URL = "YOUR_SUPABASE_URL_HERE"; 
-    const SUPABASE_KEY = "YOUR_SUPABASE_SERVICE_ROLE_OR_ANON_KEY_HERE";
+    // Embedded Credentials
+    const SUPABASE_URL = "https://kurzeacigxymiatiyuxu.supabase.co"; 
+    const SUPABASE_KEY = "sb_publishable_RYyFdiRHUHzPjF8f_KGz8Q_w4zMqNK7";
     
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     const DOC_ID = 'texAR2';
@@ -47,14 +47,18 @@
 
       let initialContent = '<h1>texAR2 Workspace</h1><p>Start typing...</p>';
 
-      const { data, error } = await db
-        .from('active_documents')
-        .select('content')
-        .eq('id', DOC_ID)
-        .maybeSingle();
+      try {
+        const { data, error } = await db
+          .from('active_documents')
+          .select('content')
+          .eq('id', DOC_ID)
+          .maybeSingle();
 
-      if (data && data.content) {
-        initialContent = data.content;
+        if (data && data.content) {
+          initialContent = data.content;
+        }
+      } catch (err) {
+        console.warn("Using baseline fallback.");
       }
 
       previousContent = initialContent;
@@ -80,7 +84,7 @@
 
       const currentContent = tinymce.get('word-editor').getContent();
 
-      // Silent diff calculation
+      // Calculate silent text diffs
       const tempOld = document.createElement('div');
       tempOld.innerHTML = previousContent;
       const oldText = tempOld.innerText || tempOld.textContent;
@@ -105,7 +109,7 @@
         deleted: deletions.filter(Boolean)
       };
 
-      // 1. Direct Document Upsert
+      // 1. Direct Save to Supabase
       const { error: saveErr } = await db
         .from('active_documents')
         .upsert({ id: DOC_ID, title: 'texAR2.docx', content: currentContent, updated_at: new Date() });
@@ -116,7 +120,7 @@
         return;
       }
 
-      // 2. Direct Audit Log Insert
+      // 2. Direct Log to Audit Table
       await db.from('audit_logs').insert([
         { 
           document_id: DOC_ID, 
