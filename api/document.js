@@ -15,21 +15,19 @@ export default async function handler(req, res) {
       .eq('id', docId)
       .single();
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) return res.status(200).json({ content: '<h1>texAR2 Workspace</h1><p>Start typing here...</p>' });
     return res.status(200).json(data);
   }
 
   if (req.method === 'POST') {
     const { content, user, changes } = req.body;
 
-    // 1. Update the fixed document state
     const { error } = await supabase
       .from('active_documents')
-      .upsert({ id: docId, title: 'texAR2.docx', content, updated_at: new Date() });
+      .upsert({ id: docId, title: 'texAR2.docx', content, updated_at: new Date() }, { onConflict: 'id' });
 
     if (error) return res.status(500).json({ error: error.message });
 
-    // 2. Silently log exact additions/deletions into audit_logs
     await supabase.from('audit_logs').insert([
       { 
         document_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 
