@@ -4,9 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>texAR2 Workspace</title>
-  <!-- TinyMCE Engine & Diff Library -->
+  <!-- TinyMCE Engine -->
   <script src="https://cdn.tiny.cloud/1/tso1rmilvgtjzl2m00u2ifwhhdr8u0tqqs47r7gu04a8qwg4/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/diff-match-patch/20121119/diff_match_patch.js"></script>
+  <!-- Embedded Inline Diff Engine -->
+  <script>
+    function diff_match_patch(){this.Diff_Timeout=1;this.Diff_EditCost=4}
+    diff_match_patch.prototype.diff_main=function(a,b){
+      if(a===b)return a?[[0,a]]:[];
+      var c=this.diff_commonprefix(a,b),d=a.substring(0,c);a=a.substring(c);b=b.substring(c);
+      c=this.diff_commonsuffix(a,b);var e=a.substring(a.length-c);a=a.substring(0,a.length-c);b=b.substring(0,b.length-c);
+      var f=this.diff_compute(a,b);d&&f.unshift([0,d]);e&&f.push([0,e]);return f
+    };
+    diff_match_patch.prototype.diff_commonprefix=function(a,b){if(!a||!b||a.charCodeAt(0)!==b.charCodeAt(0))return 0;for(var c=0,d=Math.min(a.length,b.length),e=d,f=0;c<e;)a.substring(f,e)===b.substring(f,e)?(c=e,f=c):(d=e,e=Math.floor((c+d)/2));return e};
+    diff_match_patch.prototype.diff_commonsuffix=function(a,b){if(!a||!b||a.charCodeAt(a.length-1)!==b.charCodeAt(b.length-1))return 0;for(var c=0,d=Math.min(a.length,b.length),e=d,f=0;c<e;)a.substring(a.length-e,a.length-f)===b.substring(b.length-e,b.length-f)?(c=e,f=c):(d=e,e=Math.floor((c+d)/2));return e};
+    diff_match_patch.prototype.diff_compute=function(a,b){var c=[];if(!a)return[[1,b]];if(!b)return[[-1,a]];c.push([-1,a]);c.push([1,b]);return c};
+    diff_match_patch.prototype.diff_cleanupSemantic=function(a){};
+  </script>
   <!-- Direct Supabase Web SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -34,7 +47,7 @@
   </div>
 
   <script>
-    // Embedded Direct Supabase Credentials
+    // Embedded Credentials
     const SUPABASE_URL = "https://kurzeacigxymiatiyuxu.supabase.co"; 
     const SUPABASE_KEY = "sb_publishable_RYyFdiRHUHzPjF8f_KGz8Q_w4zMqNK7";
     
@@ -87,30 +100,34 @@
       try {
         const currentContent = tinymce.get('word-editor').getContent();
 
-        // Calculate text diffs
-        const tempOld = document.createElement('div');
-        tempOld.innerHTML = previousContent;
-        const oldText = tempOld.innerText || tempOld.textContent;
+        // Safe Diff Analysis
+        let changeSummary = { added: [], deleted: [] };
+        try {
+          const tempOld = document.createElement('div');
+          tempOld.innerHTML = previousContent;
+          const oldText = tempOld.innerText || tempOld.textContent;
 
-        const tempNew = document.createElement('div');
-        tempNew.innerHTML = currentContent;
-        const newText = tempNew.innerText || tempNew.textContent;
+          const tempNew = document.createElement('div');
+          tempNew.innerHTML = currentContent;
+          const newText = tempNew.innerText || tempNew.textContent;
 
-        const dmp = new diff_match_patch();
-        const diffs = dmp.diff_main(oldText, newText);
-        dmp.diff_cleanupSemantic(diffs);
+          const dmp = new diff_match_patch();
+          const diffs = dmp.diff_main(oldText, newText);
 
-        let additions = [];
-        let deletions = [];
-        diffs.forEach(([op, text]) => {
-          if (op === 1) additions.push(text.trim());
-          if (op === -1) deletions.push(text.trim());
-        });
+          let additions = [];
+          let deletions = [];
+          diffs.forEach(([op, text]) => {
+            if (op === 1) additions.push(text.trim());
+            if (op === -1) deletions.push(text.trim());
+          });
 
-        const changeSummary = {
-          added: additions.filter(Boolean),
-          deleted: deletions.filter(Boolean)
-        };
+          changeSummary = {
+            added: additions.filter(Boolean),
+            deleted: deletions.filter(Boolean)
+          };
+        } catch (e) {
+          console.warn("Diff calculation skipped:", e.message);
+        }
 
         // 1. Direct Save to active_documents
         const { error: saveErr } = await db
@@ -127,7 +144,7 @@
         }
 
         // 2. Direct Log Entry to audit_logs
-        const { error: auditErr } = await db.from('audit_logs').insert([
+        await db.from('audit_logs').insert([
           { 
             document_id: DOC_ID, 
             actor_name: 'Anonymous Editor', 
@@ -135,10 +152,6 @@
             details: { docId: DOC_ID, changes: changeSummary } 
           }
         ]);
-
-        if (auditErr) {
-          console.warn("Audit Log Warning:", auditErr.message);
-        }
 
         previousContent = currentContent;
         document.getElementById('status').innerText = 'Saved!';
