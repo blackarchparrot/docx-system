@@ -34,8 +34,41 @@
     const DOC_ID = 'texAR2';
     let previousContent = '';
 
+    // Image Resizer/Compressor to stay within Vercel's 4.5MB payload limit
+    function compressImage(file, callback) {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const img = new Image();
+        img.onload = function () {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const max_size = 1000; // Resize to max 1000px
+
+          if (width > height) {
+            if (width > max_size) {
+              height *= max_size / width;
+              width = max_size;
+            }
+          } else {
+            if (height > max_size) {
+              width *= max_size / height;
+              height = max_size;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          callback(canvas.toDataURL('image/jpeg', 0.7)); // 70% quality compression
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
     async function initEditor() {
-      let initialContent = '<h1>texAR2.docx</h1><p>Paste or type content here...</p>';
+      let initialContent = '<h1>texAR2 Workspace</h1><p>Paste or type content here...</p>';
 
       try {
         const res = await fetch(`/api/document?id=${DOC_ID}`);
@@ -46,7 +79,7 @@
           }
         }
       } catch (err) {
-        console.warn("Using baseline document content.");
+        console.warn("Using baseline content.");
       }
 
       previousContent = initialContent;
@@ -59,28 +92,19 @@
         plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table wordcount',
         toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | image table | removeformat',
         content_style: 'body { font-family: Arial, sans-serif; font-size: 14pt; padding: 25px; } img { max-width: 100%; height: auto; }',
-        
-        // Convert pasted/inserted images to inline Base64 data strings
         image_title: true,
         automatic_uploads: true,
         file_picker_types: 'image',
         file_picker_callback: function (cb, value, meta) {
-          var input = document.createElement('input');
+          const input = document.createElement('input');
           input.setAttribute('type', 'file');
           input.setAttribute('accept', 'image/*');
 
           input.onchange = function () {
-            var file = this.files[0];
-            var reader = new FileReader();
-            reader.onload = function () {
-              var id = 'blobid' + (new Date()).getTime();
-              var blobCache =  tinymce.activeEditor.editorUpload.blobCache;
-              var base64 = reader.result.split(',')[1];
-              var blobInfo = blobCache.create(id, file, base64);
-              blobCache.add(blobInfo);
-              cb(blobInfo.blobUri(), { title: file.name });
-            };
-            reader.readAsDataURL(file);
+            const file = this.files[0];
+            compressImage(file, function (compressedDataUrl) {
+              cb(compressedDataUrl, { title: file.name });
+            });
           };
           input.click();
         },
@@ -94,9 +118,7 @@
 
     async function saveDocument() {
       document.getElementById('status').innerText = 'Saving...';
-      
-      // Ensure all inserted images are encoded to permanent base64 before posting
-      await tinymce.activeEditor.uploadImages();
+
       const currentContent = tinymce.get('word-editor').getContent();
 
       const tempOld = document.createElement('div');
@@ -134,14 +156,18 @@
           })
         });
 
-        if (res.ok) {
+        const resData = await res.json();
+
+        if (res.ok && resData.success) {
           previousContent = currentContent;
           document.getElementById('status').innerText = 'Saved!';
           setTimeout(() => document.getElementById('status').innerText = 'Ready', 2000);
         } else {
+          alert('Save Failed: ' + (resData.error || 'Payload too large or server error.'));
           document.getElementById('status').innerText = 'Save failed!';
         }
       } catch (e) {
+        alert('Network or Server Error during save: ' + e.message);
         document.getElementById('status').innerText = 'Save failed!';
       }
     }
