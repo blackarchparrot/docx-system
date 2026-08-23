@@ -24,51 +24,136 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; }
-    #navbar { height: 50px; background: #1e293b; color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
+    #navbar { height: 50px; background: #090d16; color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid #1e293b; }
     #editor-wrapper { max-width: 900px; margin: 20px auto; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 4px; }
     .btn { background: #22c55e; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; }
     #status { font-size: 13px; color: #94a3b8; margin-right: 15px; }
 
-    /* Modal Styling */
+    /* Dark Theme Landing Screen */
     #user-modal-overlay {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px);
+      background: #030712;
       display: flex; justify-content: center; align-items: center; z-index: 9999;
     }
-    .modal-card {
-      background: white; padding: 30px; border-radius: 8px; text-align: center;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-width: 400px; width: 90%;
+    .landing-card {
+      text-align: center; max-width: 480px; width: 90%;
     }
-    .modal-card h2 { margin-top: 0; color: #0f172a; font-size: 24px; }
-    .modal-card p.subtitle { color: #64748b; font-size: 13px; margin-bottom: 25px; }
-    .credit-badge { display: inline-block; background: #e2e8f0; color: #334155; font-size: 11px; padding: 4px 10px; border-radius: 12px; margin-bottom: 20px; font-weight: 600; }
-    .user-btn-group { display: flex; flex-direction: column; gap: 10px; }
+    .team-badge {
+      display: inline-block;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid #1e293b;
+      color: #94a3b8;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      padding: 6px 16px;
+      border-radius: 20px;
+      margin-bottom: 25px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .brand-title {
+      font-size: 48px;
+      font-weight: 800;
+      color: #ffffff;
+      margin: 0;
+      letter-spacing: -1px;
+    }
+    .brand-title span {
+      color: #6366f1;
+    }
+    .brand-subtitle {
+      color: #64748b;
+      font-size: 12px;
+      letter-spacing: 1.5px;
+      margin-top: 8px;
+      margin-bottom: 30px;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    .credit-divider {
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 20px;
+      margin-bottom: 30px;
+    }
+    .credit-text {
+      color: #64748b;
+      font-size: 13px;
+      margin: 0;
+    }
+    .credit-author {
+      color: #818cf8;
+      font-size: 15px;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+    .user-btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
     .btn-user {
-      background: #3b82f6; color: white; border: none; padding: 12px;
-      border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer;
-      transition: background 0.2s ease;
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      color: white;
+      border: none;
+      padding: 14px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
     }
-    .btn-user:hover { background: #2563eb; }
+    .btn-user:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+      background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+    }
+    .btn-user .arrow {
+      font-size: 16px;
+      transition: transform 0.2s ease;
+    }
+    .btn-user:hover .arrow {
+      transform: translateX(4px);
+    }
   </style>
 </head>
 <body>
 
   <!-- Entry Modal -->
   <div id="user-modal-overlay">
-    <div class="modal-card">
-      <h2>TexA Workspace</h2>
-      <div class="credit-badge">System Developed by Black Parrot</div>
-      <p class="subtitle">Please select your profile to proceed into the workspace:</p>
+    <div class="landing-card">
+      <div class="team-badge">Team Three Bugs</div>
+      <h1 class="brand-title">Tex<span>A</span></h1>
+      <div class="brand-subtitle">Textile AI Assistant Documentation</div>
+      
+      <div class="credit-divider">
+        <p class="credit-text">Architected & Created by</p>
+        <div class="credit-author">Black Parrot</div>
+      </div>
+
       <div class="user-btn-group">
-        <button class="btn-user" onclick="selectUser('Sunny')">Sunny</button>
-        <button class="btn-user" onclick="selectUser('Alvina')">Alvina</button>
-        <button class="btn-user" onclick="selectUser('Satu Saha')">Satu Saha</button>
+        <button class="btn-user" onclick="selectUser('Sunny')">
+          <span>Enter as Sunny</span>
+          <span class="arrow">&rarr;</span>
+        </button>
+        <button class="btn-user" onclick="selectUser('Alvina')">
+          <span>Enter as Alvina</span>
+          <span class="arrow">&rarr;</span>
+        </button>
+        <button class="btn-user" onclick="selectUser('Satu Saha')">
+          <span>Enter as Satu Saha</span>
+          <span class="arrow">&rarr;</span>
+        </button>
       </div>
     </div>
   </div>
 
   <div id="navbar">
-    <div><strong>TexA Workspace</strong> — <span id="active-user-display">Selecting User...</span></div>
+    <div><strong>TexA Workspace</strong> — <span id="active-user-display" style="color: #818cf8;">Selecting User...</span></div>
     <div>
       <span id="status">Connecting...</span>
       <button class="btn" onclick="saveDocument()">Save Document</button>
