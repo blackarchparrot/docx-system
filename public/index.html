@@ -4,8 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>texAR2 Workspace</title>
+  <!-- TinyMCE & DMP -->
   <script src="https://cdn.tiny.cloud/1/tso1rmilvgtjzl2m00u2ifwhhdr8u0tqqs47r7gu04a8qwg4/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/diff-match-patch/20121119/diff_match_patch.js"></script>
+  <!-- Direct Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; }
     #navbar { height: 50px; background: #1e293b; color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
@@ -20,7 +23,7 @@
   <div id="navbar">
     <div><strong>DocWorkspace</strong> — texAR2.docx</div>
     <div>
-      <span id="status">Loading document...</span>
+      <span id="status">Connecting...</span>
       <button class="btn" onclick="saveDocument()">Save Document</button>
       <a href="/admin" class="btn btn-audit">Audit Logs</a>
     </div>
@@ -31,55 +34,27 @@
   </div>
 
   <script>
+    // HARDCODED DIRECT CONNECTION (No Vercel API middleware)
+    const SUPABASE_URL = "YOUR_SUPABASE_URL_HERE"; 
+    const SUPABASE_KEY = "YOUR_SUPABASE_SERVICE_ROLE_OR_ANON_KEY_HERE";
+    
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     const DOC_ID = 'texAR2';
     let previousContent = '';
 
-    // Image Resizer/Compressor to stay within Vercel's 4.5MB payload limit
-    function compressImage(file, callback) {
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        const img = new Image();
-        img.onload = function () {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          const max_size = 1000; // Resize to max 1000px
-
-          if (width > height) {
-            if (width > max_size) {
-              height *= max_size / width;
-              width = max_size;
-            }
-          } else {
-            if (height > max_size) {
-              width *= max_size / height;
-              height = max_size;
-            }
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          callback(canvas.toDataURL('image/jpeg', 0.7)); // 70% quality compression
-        };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
-
     async function initEditor() {
-      let initialContent = '<h1>texAR2 Workspace</h1><p>Paste or type content here...</p>';
+      document.getElementById('status').innerText = 'Fetching document...';
 
-      try {
-        const res = await fetch(`/api/document?id=${DOC_ID}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.content) {
-            initialContent = data.content;
-          }
-        }
-      } catch (err) {
-        console.warn("Using baseline content.");
+      let initialContent = '<h1>texAR2 Workspace</h1><p>Start typing...</p>';
+
+      const { data, error } = await db
+        .from('active_documents')
+        .select('content')
+        .eq('id', DOC_ID)
+        .maybeSingle();
+
+      if (data && data.content) {
+        initialContent = data.content;
       }
 
       previousContent = initialContent;
@@ -90,24 +65,8 @@
         height: 750,
         menubar: 'file edit view insert format tools table',
         plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table wordcount',
-        toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | image table | removeformat',
+        toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table | removeformat',
         content_style: 'body { font-family: Arial, sans-serif; font-size: 14pt; padding: 25px; } img { max-width: 100%; height: auto; }',
-        image_title: true,
-        automatic_uploads: true,
-        file_picker_types: 'image',
-        file_picker_callback: function (cb, value, meta) {
-          const input = document.createElement('input');
-          input.setAttribute('type', 'file');
-          input.setAttribute('accept', 'image/*');
-
-          input.onchange = function () {
-            const file = this.files[0];
-            compressImage(file, function (compressedDataUrl) {
-              cb(compressedDataUrl, { title: file.name });
-            });
-          };
-          input.click();
-        },
         setup: function (editor) {
           editor.on('init', function () {
             editor.setContent(initialContent);
@@ -117,10 +76,11 @@
     }
 
     async function saveDocument() {
-      document.getElementById('status').innerText = 'Saving...';
+      document.getElementById('status').innerText = 'Saving directly to database...';
 
       const currentContent = tinymce.get('word-editor').getContent();
 
+      // Silent diff calculation
       const tempOld = document.createElement('div');
       tempOld.innerHTML = previousContent;
       const oldText = tempOld.innerText || tempOld.textContent;
@@ -145,31 +105,30 @@
         deleted: deletions.filter(Boolean)
       };
 
-      try {
-        const res = await fetch(`/api/document?id=${DOC_ID}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            content: currentContent, 
-            user: 'Anonymous Editor',
-            changes: changeSummary
-          })
-        });
+      // 1. Direct Document Upsert
+      const { error: saveErr } = await db
+        .from('active_documents')
+        .upsert({ id: DOC_ID, title: 'texAR2.docx', content: currentContent, updated_at: new Date() });
 
-        const resData = await res.json();
-
-        if (res.ok && resData.success) {
-          previousContent = currentContent;
-          document.getElementById('status').innerText = 'Saved!';
-          setTimeout(() => document.getElementById('status').innerText = 'Ready', 2000);
-        } else {
-          alert('Save Failed: ' + (resData.error || 'Payload too large or server error.'));
-          document.getElementById('status').innerText = 'Save failed!';
-        }
-      } catch (e) {
-        alert('Network or Server Error during save: ' + e.message);
+      if (saveErr) {
+        alert('Save Error: ' + saveErr.message);
         document.getElementById('status').innerText = 'Save failed!';
+        return;
       }
+
+      // 2. Direct Audit Log Insert
+      await db.from('audit_logs').insert([
+        { 
+          document_id: DOC_ID, 
+          actor_name: 'Anonymous Editor', 
+          event_type: 'DOC_MODIFIED', 
+          details: { docId: DOC_ID, changes: changeSummary } 
+        }
+      ]);
+
+      previousContent = currentContent;
+      document.getElementById('status').innerText = 'Saved!';
+      setTimeout(() => document.getElementById('status').innerText = 'Ready', 2000);
     }
 
     window.onload = initEditor;
